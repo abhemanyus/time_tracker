@@ -1,6 +1,6 @@
 [package]
 version = "0.1.0"
-name = "counter"
+name = "time_tracker"
 repository = "https://github.com/seed-rs/seed-quickstart"
 authors = ["sanndy"]
 description = "App Description"
@@ -16,7 +16,9 @@ crate-type = ["cdylib"]
 wasm-bindgen-test = "0.3.18"
 
 [dependencies]
+chrono = "0.4.19"
 seed = "0.8.0"
+ulid = "0.4.0"
 
 [profile.release]
 lto = true

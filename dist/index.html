@@ -3,20 +3,59 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <link rel="modulepreload" href="/pkg/package.js" as="script" type="text/javascript">
     <link rel="preload" href="/pkg/package_bg.wasm" as="fetch" type="application/wasm" crossorigin="anonymous">
+    <title>Time Tracker</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.0/css/bulma.min.css">
+    
 
-<link rel="preload" href="/counter-e12c35cf77b32cd1_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
-<link rel="modulepreload" href="/counter-e12c35cf77b32cd1.js"></head>
+<link rel="preload" href="/time_tracker-98765d495dae4ebb_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/time_tracker-98765d495dae4ebb.js"></head>
 
 <body>
     <section id="app"></section>
-    <script type="module">
-        import init from '/pkg/package.js';
-        init('/pkg/package_bg.wasm');
-    </script>
+    <script src="https://cdn.auth0.com/js/auth0-spa-js/1.20/auth0-spa-js.production.js"></script>
+    <script>// const init = require('/pkg/package.js');
+
+let auth0 = null;
+
+window.init_auth = async (domain, client_id) => {
+    auth0 = await createAuth0Client({
+        domain,
+        client_id,
+    });
+
+    const query = window.location.search;
+    if (query.includes("code=") && query.includes("state=")) {
+        await auth0.handleRedirectCallback();
+    }
+
+    if (await auth0.isAuthenticated()) {
+        return await auth0.getUser();
+    }
+}
+
+window.redirect_to_sign_up = async () => {
+    await auth0.loginWithRedirect({
+        redirect_uri: window.location.origin,
+        screen_hint: "signup"
+    });
+}
+
+window.redirect_to_log_in = async () => {
+    await auth0.loginWithRedirect({
+        redirect_uri: window.location.origin,
+    });
+}
+
+window.logout = () => {
+    auth0.logout({
+        returnTo: window.location.origin
+    });
+}
+
+// init('/pkg/package_bg.wasm');</script>
 
 
-
-<script type="module">import init from '/counter-e12c35cf77b32cd1.js';init('/counter-e12c35cf77b32cd1_bg.wasm');</script><script>(function () {
+<script type="module">import init from '/time_tracker-98765d495dae4ebb.js';init('/time_tracker-98765d495dae4ebb_bg.wasm');</script><script>(function () {
     var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     var url = protocol + '//' + window.location.host + '/_trunk/ws';
     var poll_interval = 5000;

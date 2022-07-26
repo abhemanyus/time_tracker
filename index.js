@@ -1,5 +1,3 @@
-// const init = require('/pkg/package.js');
-
 let auth0 = null;
 
 window.init_auth = async (domain, client_id) => {
@@ -36,5 +34,3 @@ window.logout = () => {
         returnTo: window.location.origin
     });
 }
-
-// init('/pkg/package_bg.wasm');

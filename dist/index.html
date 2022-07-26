@@ -1,8 +1,6 @@
 <!DOCTYPE html><html lang="en"><head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <link rel="modulepreload" href="/pkg/package.js" as="script" type="text/javascript">
-    <link rel="preload" href="/pkg/package_bg.wasm" as="fetch" type="application/wasm" crossorigin="anonymous">
     <title>Time Tracker</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.0/css/bulma.min.css">
     
@@ -13,9 +11,7 @@
 <body>
     <section id="app"></section>
     <script src="https://cdn.auth0.com/js/auth0-spa-js/1.20/auth0-spa-js.production.js"></script>
-    <script>// const init = require('/pkg/package.js');
-
-let auth0 = null;
+    <script>let auth0 = null;
 
 window.init_auth = async (domain, client_id) => {
     auth0 = await createAuth0Client({
@@ -51,8 +47,7 @@ window.logout = () => {
         returnTo: window.location.origin
     });
 }
-
-// init('/pkg/package_bg.wasm');</script>
+</script>
 
 
 <script type="module">import init from '/time_tracker-98765d495dae4ebb.js';init('/time_tracker-98765d495dae4ebb_bg.wasm');</script><script>(function () {

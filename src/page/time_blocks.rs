@@ -360,5 +360,252 @@ pub fn update(msg: Msg, model: &mut Model, _: &mut impl Orders<Msg>) {
 // ------ ------
 
 pub fn view(model: &Model) -> Node<Msg> {
-    div!["TimeBlocks view"]
+    section![
+        h1![C!["title", "ml-6", "mt-6", "mb-5"],
+            "Time Blocks",
+        ],
+        div![C!["columns", "is-centered"],
+            div![C!["column", "is-two-thirds"],
+                match &model.clients {
+                    RemoteData::NotAsked | RemoteData::Loading => {
+                        progress![C!["progress", "is-link", "mt-6"]].into_nodes()
+                    },
+                    RemoteData::Loaded(clients) => {
+                        clients.iter().rev().map(|(client_id, client)| view_client(*client_id, client)).collect()
+                    }
+                }
+            ]
+        ]
+    ]
+}
+
+fn view_client(client_id: ClientId, client: &Client) -> Node<Msg> {
+    div![C!["box", "has-background-link", "mt-6",],
+        div![C!["level", "is-mobile"], style!{St::FlexWrap => "wrap", St::MarginBottom => 0},
+            div![C!["is-size-3", "has-text-link-light", "mb-2"], 
+                &client.name,
+            ],
+            view_statistics(client.time_blocks.values(), &client.tracked),
+        ],
+        view_add_time_block_button(client_id),
+        client.time_blocks.iter().rev().map(|(time_block_id, time_block)| view_time_block(client_id, *time_block_id, time_block)),
+    ]
+}
+
+fn view_statistics<'a>(time_blocks: impl Iterator<Item = &'a TimeBlock>, tracked: &Duration, ) -> Node<Msg> {
+    let mut blocked = 0.;
+    let mut unpaid_total = 0.;
+    let mut paid_total = 0.;
+
+    for time_block in time_blocks {
+        let hours = time_block.duration.num_minutes() as f64 / 60.;
+        blocked += hours;
+
+        match time_block.status {
+            TimeBlockStatus::NonBillable => (),
+            TimeBlockStatus::Unpaid => unpaid_total += hours,
+            TimeBlockStatus::Paid => paid_total += hours,
+        };
+    }
+
+    let tracked = tracked.num_minutes() as f64 / 60.;
+    let to_block = tracked - blocked;
+
+    let pair = |key: &str, value: f64| {
+        div![C!["is-flex"], style!{St::JustifyContent => "space-between"},
+            span![
+                key
+            ],
+            span![style!{St::MarginLeft => rem(1)},
+                format!("{:.1}", value)
+            ],
+        ]
+    };
+
+    div![C!["level", "is-mobile"], style!{St::AlignItems => "baseline"},
+        div![C!["box", "has-background-link", "has-text-link-light"],
+            pair("Blocked", blocked),
+            div![style!{St::Height => rem(1)}],
+            pair("Unpaid", unpaid_total),
+            pair("Paid", paid_total),
+        ],
+        div![
+            div![C!["box", "has-background-link", "has-text-link-light"],
+                style!{St::MarginBottom => 0},
+                pair("Tracked", tracked),
+            ],
+            div![C!["box", "has-background-link", "has-text-link-light"],
+                pair("To Block", to_block),
+            ],
+        ]
+    ]
+}
+
+fn view_add_time_block_button(client_id: ClientId) -> Node<Msg> {
+    div![C!["level", "is-mobile"],
+        button![C!["button", "is-primary", "is-rounded"],
+            style!{
+                St::MarginLeft => "auto",
+                St::MarginRight => "auto",
+            },
+            ev(Ev::Click, move |_| Msg::AddTimeBlock(client_id)),
+            span![C!["icon"],
+                i![C!["fas", "fa-plus"]]
+            ],
+            span!["Add Time Block"],
+        ],
+    ]
+}
+
+fn view_time_block(client_id: ClientId, time_block_id: TimeBlockId, time_block: &TimeBlock) -> Node<Msg> {
+    div![C!["box"],
+        div![C!["level", "is-mobile"],
+            input![C!["input", "is-size-4"], 
+                style!{
+                    St::BoxShadow => "none",
+                    St::BackgroundColor => "transparent",
+                    St::Height => rem(3),
+                    St::Border => "none",
+                    St::BorderBottom => format!("{} {} {}", "solid", PRIMARY_COLOR, px(2)),
+                    St::MaxWidth => percent(47),
+                },
+                attrs!{At::Value => time_block.name},
+                input_ev(Ev::Input, move |name| Msg::TimeBlockNameChanged(client_id, time_block_id, name)),
+                ev(Ev::Change, move |_| Msg::SaveTimeBlockName(client_id, time_block_id)),
+            ],
+            div![C!["is-flex"], style!{St::AlignItems => "center"},
+                input![C!["input", "is-size-4", "has-text-right"], 
+                    style!{
+                        St::BoxShadow => "none",
+                        St::BackgroundColor => "transparent",
+                        St::Height => rem(3),
+                        St::Border => "none",
+                        St::BorderBottom => format!("{} {} {}", "solid", PRIMARY_COLOR, px(2)),
+                        St::MaxWidth => rem(6),
+                    },
+                    attrs!{
+                        At::Value => if let Some(duration) = &time_block.duration_change {
+                            duration.to_owned()
+                        } else {
+                            format!("{:.1}", time_block.duration.num_minutes() as f64 / 60.)
+                        }
+                    },
+                    input_ev(Ev::Input, move |duration| Msg::TimeBlockDurationChanged(client_id, time_block_id, duration)),
+                    ev(Ev::Change, move |_| Msg::SaveTimeBlockDuration(client_id, time_block_id)),
+                ],
+                div![
+                    "h"
+                ],
+            ],
+            view_delete_button(move || Msg::DeleteTimeBlock(client_id, time_block_id)),
+        ],
+        div![C!["level", "is-mobile"],
+            view_status_buttons(client_id, time_block_id, time_block.status),
+            IF!(time_block.invoice.is_none() => view_attach_invoice_button(client_id, time_block_id)),
+        ],
+        time_block.invoice.as_ref().map(move |invoice| view_invoice(client_id, time_block_id, invoice)),
+    ]
+}
+
+fn view_status_buttons(client_id: ClientId, time_block_id: TimeBlockId, status: TimeBlockStatus) -> Node<Msg> {
+    div![C!["buttons", "has-addons"], style!{St::MarginBottom => 0},
+        button![
+            C!["button", "is-rounded", IF!(matches!(status, TimeBlockStatus::NonBillable) => 
+                ["is-selected", "is-primary"].as_ref()
+            )], 
+            style!{St::MarginBottom => 0},
+            "Non-billable",
+            ev(Ev::Click, move |_| Msg::SetTimeBlockStatus(client_id, time_block_id, TimeBlockStatus::NonBillable)),
+        ],
+        button![
+            C!["button", IF!(matches!(status, TimeBlockStatus::Unpaid) => 
+                ["is-selected", "is-primary"].as_ref()
+            )], 
+            style!{St::MarginBottom => 0},
+            "Unpaid",
+            ev(Ev::Click, move |_| Msg::SetTimeBlockStatus(client_id, time_block_id, TimeBlockStatus::Unpaid)),
+        ],
+        button![
+            C!["button", "is-rounded", IF!(matches!(status, TimeBlockStatus::Paid) => 
+                ["is-selected", "is-primary"].as_ref()
+            )],
+            style!{St::MarginBottom => 0},
+            "Paid",
+            ev(Ev::Click, move |_| Msg::SetTimeBlockStatus(client_id, time_block_id, TimeBlockStatus::Paid)),
+        ],
+    ]
+}
+
+fn view_attach_invoice_button(client_id: ClientId, time_block_id: TimeBlockId) -> Node<Msg> {
+    button![C!["button", "is-primary", "is-rounded"],
+        ev(Ev::Click, move |_| Msg::AttachInvoice(client_id, time_block_id)),
+        span![C!["icon"],
+            i![C!["fas", "fa-plus"]]
+        ],
+        span!["Attach Invoice"],
+    ]
+}
+
+fn view_invoice(client_id: ClientId, time_block_id: TimeBlockId, invoice: &Invoice) -> Node<Msg> {
+    div![C!["box", "has-text-link-light", "has-background-link"],
+        div![C!["level", "is-mobile"],
+            div!["Invoice ID"],
+            input![C!["input", "has-text-link-light"], 
+                style!{
+                    St::BoxShadow => "none",
+                    St::BackgroundColor => "transparent",
+                    St::Border => "none",
+                    St::BorderBottom => format!("{} {} {}", "solid", PRIMARY_COLOR, px(2)),
+                    St::MaxWidth => percent(55),
+                },
+                attrs!{At::Value => invoice.custom_id.as_ref().map(String::as_str).unwrap_or_default()},
+                input_ev(Ev::Input, move |custom_id| Msg::InvoiceCustomIdChanged(client_id, time_block_id, custom_id)),
+                ev(Ev::Change, move |_| Msg::SaveInvoiceCustomId(client_id, time_block_id)),
+            ],
+            view_delete_button(move || Msg::DeleteInvoice(client_id, time_block_id)),
+        ],
+        div![C!["level", "is-mobile"],
+            div!["URL"],
+            input![C!["input", "has-text-link-light"], 
+                style!{
+                    St::BoxShadow => "none",
+                    St::BackgroundColor => "transparent",
+                    St::Border => "none",
+                    St::BorderBottom => format!("{} {} {}", "solid", PRIMARY_COLOR, px(2)),
+                    St::MaxWidth => percent(67),
+                },
+                attrs!{At::Value => invoice.url.as_ref().map(String::as_str).unwrap_or_default()},
+                input_ev(Ev::Input, move |url| Msg::InvoiceUrlChanged(client_id, time_block_id, url)),
+                ev(Ev::Change, move |_| Msg::SaveInvoiceUrl(client_id, time_block_id)),
+            ],
+            invoice.url.as_ref().map(move |url| view_go_button(url)),
+        ],
+    ]
+}
+
+fn view_delete_button(on_click: impl Fn() -> Msg + Clone + 'static) -> Node<Msg> {
+    button![C!["button", "is-primary", "is-rounded"],
+        style!{
+            St::Width => 0,
+        },
+        ev(Ev::Click, move |_| on_click()),
+        span![C!["icon"],
+            i![C!["fas", "fa-trash-alt"]]
+        ],
+    ]
+}
+
+fn view_go_button(url: &str) -> Node<Msg> {
+    a![C!["button", "is-primary", "is-rounded"],
+        style!{
+            St::Width => 0,
+        },
+        attrs!{
+            At::Href => url,
+            At::Target => "_blank",
+        },
+        span![C!["icon"],
+            i![C!["fas", "fa-external-link-alt"]]
+        ],
+    ]
 }

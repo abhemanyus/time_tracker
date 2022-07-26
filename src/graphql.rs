@@ -1,3 +1,57 @@
+use seed::{prelude::*};
+
+use cynic;
+
+pub type Result<T> = std::result::Result<T, GraphQLError>;
+
+pub async fn send_operation<'a, ResponseData: 'a>(
+    operation: cynic::Operation<'a, ResponseData>
+) -> Result<ResponseData> {
+    let graphql_response = 
+        // @TODO: Move url to a config file.
+        Request::new("https://time-tracker.eu-central-1.aws.cloud.dgraph.io/graphql")
+            .method(Method::Post)
+            .json(&operation)?
+            .fetch()
+            .await?
+            .check_status()?
+            .json()
+            .await?;
+
+    let response_data = operation.decode_response(graphql_response)?;
+    if let Some(errors) = response_data.errors {
+        Err(errors)?
+    }
+    Ok(response_data.data.expect("response data"))
+}
+
+// ------ Error ------
+
+#[derive(Debug)]
+pub enum GraphQLError {
+    FetchError(FetchError),
+    ResponseErrors(Vec<cynic::GraphQLError>),
+    DecodeError(cynic::DecodeError)
+}
+
+impl From<FetchError> for GraphQLError {
+    fn from(fetch_error: FetchError) -> Self {
+        Self::FetchError(fetch_error)
+    }
+}
+
+impl From<Vec<cynic::GraphQLError>> for GraphQLError {
+    fn from(response_errors: Vec<cynic::GraphQLError>) -> Self {
+        Self::ResponseErrors(response_errors)
+    }
+}
+
+impl From<cynic::DecodeError> for GraphQLError {
+    fn from(decode_error: cynic::DecodeError) -> Self {
+        Self::DecodeError(decode_error)
+    }
+}
+
 pub mod queries {
     #[cynic::query_module(
         schema_path = "schema.graphql",
